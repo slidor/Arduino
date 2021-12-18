@@ -1,8 +1,11 @@
+#include <SSD1306Ascii.h>
+#include <SSD1306AsciiWire.h>
 #include <Adafruit_NeoPixel.h>
 #include <ezButton.h>
 #include <RotaryEncoder.h>
 #include <EEPROM.h>
 
+#define I2C_ADDRESS 0x3C
 
 #define ROT_PIN_IN1 2
 #define ROT_PIN_IN2 3
@@ -11,7 +14,7 @@
 #define LED_PIN 10
 
 // How many NeoPixels are attached to the Arduino?
-#define LED_COUNT 3
+#define LED_COUNT 132
 
 // constants
 
@@ -41,6 +44,8 @@ ezButton rotaryButton(ROT_BTN_PIN);
 
 RotaryEncoder *encoder = nullptr;
 
+SSD1306AsciiWire oled;
+
 void ledOn() {
   Serial.print("Set LEDcolor: (R,G,B,W) (");
   Serial.print(red);
@@ -51,6 +56,7 @@ void ledOn() {
   Serial.print(", ");
   Serial.print(white);
   Serial.println(")");
+  updateDisplay("");
   switch (dir) {
     case 0:
       strip.fill(strip.Color(red,green,blue,white), 0, LED_COUNT/3);
@@ -103,9 +109,12 @@ void ledOff() {
 
 void toggleOnOff() {
   if (stripON) {
+    updateDisplay("Powering OFF");
     ledOff();
     stripON = false;
     Serial.println("LEDs off");
+    delay(1000);
+    oled.clear();
   }
   else {
     ledOn();
@@ -121,7 +130,10 @@ void memorize() {
   EEPROM.update(2, green); // Green
   EEPROM.update(3, blue); // Blue
   EEPROM.update(4, white); // White
-  EEPROM.update(5, dir); // Direction 
+  EEPROM.update(5, dir); // Direction
+  updateDisplay("Settings saved");
+  delay(1000);
+  updateDisplay(""); 
 }
 
 void readFromEEPROM() {
@@ -159,6 +171,7 @@ void changeMode() {
       Serial.println("undefined");
       break;
   }
+  updateDisplay("");
 }
 
 void setLightDirection(int delta) {
@@ -279,6 +292,42 @@ void checkRotaryButton() {
   }
 }
 
+void updateDisplay(String message) {
+  oled.clear();
+  oled.setFont(System5x7);
+  oled.println("DeskLamp V1.0");
+  oled.print("Mode: ");
+  switch (mode) {
+    case 0:
+      oled.println("Set Brightness");
+      break;
+    case 1:
+      oled.println("Set Direction");
+      break;
+    case 2:
+      oled.println("Set Color");
+      break;
+    case 3:
+      oled.println("Set White");
+      break;
+    default:
+      oled.println("undefined");
+      break;
+  }
+  oled.print("Color: (");
+  oled.setFont(Iain5x7);
+  oled.print(red);
+  oled.print(", ");
+  oled.print(green);
+  oled.print(", ");
+  oled.print(blue);
+  oled.print(", ");
+  oled.print(white);
+  oled.setFont(System5x7);
+  oled.println(")");  
+  oled.println(message);
+}
+
 // setup() function -- runs once at startup --------------------------------
 
 void setup() {
@@ -294,6 +343,12 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(ROT_PIN_IN1), checkPosition, CHANGE);
   attachInterrupt(digitalPinToInterrupt(ROT_PIN_IN2), checkPosition, CHANGE);
 
+  Wire.begin();
+  Wire.setClock(400000L);
+  oled.begin(&Adafruit128x32, I2C_ADDRESS);
+  
+  updateDisplay("");
+  
   powerButton.setDebounceTime(50);
   rotaryButton.setDebounceTime(50);
     
